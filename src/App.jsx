@@ -7,7 +7,7 @@ import GameHeader from "./GameHeader.jsx";
 import Stats from "./Stats.jsx";
 import ProfilePage from "./components/ProfilePage.jsx";
 import Leaderboard from "./components/Leaderboard.jsx";
-import { playSound, toggleSound, isSoundEnabled } from './sounds.js';
+import { playSound, toggleSound, isSoundEnabled, resumeAudio } from './sounds.js';
 import { 
   calculatePoints, 
   addPointsToPlayer, 
@@ -23,11 +23,13 @@ import {
   faPython, faNode, faDocker, faPhp, faVuejs,
   faAngular, faBootstrap, faUbuntu, faApple
 } from "@fortawesome/free-brands-svg-icons";
-// Enabling Orange ID integration
+// Enable Orange ID integration
 import { useBedrockPassport } from "@bedrock_org/passport";
 import { Login } from "./components/auth/index.jsx";
 import HomePage from "./components/HomePage";
 import { ErrorBoundary } from 'react-error-boundary';
+// Firebase imports
+import { saveUserToFirebase, updateUserPoints, syncLocalStatsWithFirebase, getUserData } from './firebase/firebaseService';
 
 function AuthErrorFallback({ error }) {
   return (
@@ -45,31 +47,53 @@ function AuthErrorFallback({ error }) {
   );
 }
 
-function App() {
-  // Enable Orange ID integration
-  const { isLoggedIn, user } = useBedrockPassport();
-  // const isLoggedIn = true; // Remove this line as we're using real authentication now
-  
-  // Track logged-in users
-  useEffect(() => {
-    if (isLoggedIn && user) {
-      const allUsers = JSON.parse(localStorage.getItem('allLoggedInUsers') || '[]');
-      
-      // Check if user is already in the list
-      if (!allUsers.some(u => u.id === user.id)) {
-        // Add user to list
-        allUsers.push({
-          id: user.id,
-          name: user.displayName || 'Anonymous User',
-          email: user.email || '',
-          lastLogin: new Date().toISOString()
-        });
-        
-        // Store updated list
-        localStorage.setItem('allLoggedInUsers', JSON.stringify(allUsers));
-      }
+// Simple login component
+function SimpleLogin({ onLogin }) {
+  const [username, setUsername] = useState("");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (username.trim()) {
+      // Create a simple user object
+      const user = {
+        id: 'user-' + Date.now(),
+        displayName: username,
+        email: username + '@example.com'
+      };
+      onLogin(user);
     }
-  }, [isLoggedIn, user]);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 to-slate-800 flex flex-col items-center justify-center p-4">
+      <h1 className="text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-500 mb-8">
+        MatchUp Memory Game
+      </h1>
+      <form onSubmit={handleSubmit} className="w-full max-w-md bg-slate-800 rounded-lg p-8 shadow-xl">
+        <label className="block text-white text-lg mb-2">Enter Your Name:</label>
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          className="w-full bg-slate-700 text-white p-3 rounded mb-4 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+          placeholder="Your Name"
+          required
+        />
+        <button 
+          type="submit"
+          className="w-full bg-yellow-500 hover:bg-yellow-400 text-slate-900 font-bold py-3 px-4 rounded"
+        >
+          Start Playing
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function App() {
+  // Use Orange ID authentication
+  const { isLoggedIn, user, signOut } = useBedrockPassport();
+  const [authLoading, setAuthLoading] = useState(true);
   
   // All available icons for cards
   const allIcons = [
@@ -123,9 +147,6 @@ function App() {
   const [isDuel, setIsDuel] = useState(false);
   const [duelInfo, setDuelInfo] = useState(null);
   const [duelResult, setDuelResult] = useState(null);
-  
-  // Add this right after the isLoggedIn destructuring
-  const [authLoading, setAuthLoading] = useState(true);
   
   // Load all stats from localStorage
   useEffect(() => {
@@ -276,15 +297,29 @@ function App() {
   }, []);
 
   const generateShuffledCards = (pairCount) => {
+    console.log(`Generating ${pairCount} card pairs`);
+    
     // Select the specified number of icons
     const selectedIcons = allIcons.slice(0, pairCount);
+    console.log(`Selected ${selectedIcons.length} icons`);
+    
     let id = 0;
     // Create pairs
     const duplicatedIcons = [...selectedIcons, ...selectedIcons];
+    
     // Return shuffled card objects
-    return duplicatedIcons
-      .map(icon => ({ icon, id: id++, matchId: icon.iconName }))
+    const cards = duplicatedIcons
+      .map(icon => {
+        // Make sure icon has a valid iconName property
+        const matchId = icon && icon.iconName ? icon.iconName : `card-${id % pairCount}`;
+        const card = { icon, id: id++, matchId };
+        console.log(`Created card with id: ${card.id}, matchId: ${card.matchId}`);
+        return card;
+      })
       .sort(() => Math.random() - 0.5);
+    
+    console.log(`Generated ${cards.length} cards total`);
+    return cards;
   };
 
   const startGame = (challengeInfo = null) => {
@@ -544,9 +579,12 @@ function App() {
     let difficultyGames = parseInt(localStorage.getItem(`${difficultyKey}Games`) || '0') + 1;
     localStorage.setItem(`${difficultyKey}Games`, difficultyGames.toString());
     
+    // Calculate time spent if it's a win
+    let timeSpent = 0;
+    
     if (isWin) {
       // Calculate time spent if win
-      const timeSpent = initialTimeRef.current - timer;
+      timeSpent = initialTimeRef.current - timer;
       newGamesWon = gamesWon + 1;
       setGamesWon(newGamesWon);
       localStorage.setItem('gamesWon', newGamesWon.toString());
@@ -572,17 +610,55 @@ function App() {
       // Daily challenge-specific handling is done separately in the completion handler
       // We don't need to update dailyChallengeAttempts here to avoid double-counting
       
-      // Award ORNG points based on difficulty and game type (only in regular games and daily challenges)
+      // Award points based on difficulty and game type (only in regular games and daily challenges)
       // For duels, points are handled in the processChallengeResult function
       if (!isDuel) {
         const streak = parseInt(localStorage.getItem('dailyChallengeStreak') || '0');
         earnedOrngPoints = calculatePoints(difficulty, isDailyChallenge, streak);
         
-        // Add points to the player's account
+        // Add points to the player's account (both local and Firebase)
         const pointsResult = addPointsToPlayer(earnedOrngPoints);
         setEarnedPoints(earnedOrngPoints);
         
-        console.log(`Earned ${earnedOrngPoints} ORNG points! Total: ${pointsResult.currentPoints}`);
+        console.log(`Earned ${earnedOrngPoints} points! Total: ${pointsResult.currentPoints}`);
+        
+        // If user is logged in, update Firebase
+        if (isLoggedIn && user) {
+          // Create game result object for Firebase
+          const gameResult = {
+            isWin: true,
+            difficulty: difficulty,
+            timeSpent: timeSpent,
+            isDailyChallenge: isDailyChallenge
+          };
+          
+          // Update user points in Firebase
+          updateUserPoints(user.id, earnedOrngPoints, gameResult)
+            .then(success => {
+              if (success) {
+                console.log('Updated points in Firebase successfully');
+              }
+            });
+        }
+      }
+    } else {
+      // If it's a loss and the user is logged in, record the loss in Firebase
+      if (isLoggedIn && user) {
+        // Create game result object for Firebase
+        const gameResult = {
+          isWin: false,
+          difficulty: difficulty,
+          timeSpent: 0,
+          isDailyChallenge: isDailyChallenge
+        };
+        
+        // Update user stats in Firebase (with 0 points)
+        updateUserPoints(user.id, 0, gameResult)
+          .then(success => {
+            if (success) {
+              console.log('Recorded game loss in Firebase successfully');
+            }
+          });
       }
     }
     
@@ -596,7 +672,7 @@ function App() {
     const newWinRate = Math.round((newGamesWon / newGamesPlayed) * 100);
     localStorage.setItem('winRate', newWinRate.toString());
     
-    // Get current ORNG points
+    // Get current points
     const currentOrngPoints = getPlayerPoints();
     
     // Handle duel-specific logic
@@ -615,6 +691,24 @@ function App() {
         // Update earned points to reflect duel winnings instead of regular points
         earnedOrngPoints = isWin ? duelInfo.betAmount : 0;
         setEarnedPoints(earnedOrngPoints);
+        
+        // If user is logged in, update Firebase with duel result
+        if (isLoggedIn && user && isWin) {
+          // Update user points in Firebase
+          updateUserPoints(user.id, duelInfo.betAmount, {
+            isWin: true,
+            difficulty: difficulty,
+            timeSpent: timeSpent,
+            isDuel: true,
+            opponent: duelInfo.opponent,
+            betAmount: duelInfo.betAmount
+          })
+            .then(success => {
+              if (success) {
+                console.log('Updated duel points in Firebase successfully');
+              }
+            });
+        }
       }
     }
     
@@ -880,6 +974,94 @@ function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Simple Firebase connection monitoring
+  const [isFirebaseConnected, setIsFirebaseConnected] = useState(true);
+  
+  useEffect(() => {
+    if (isLoggedIn && user) {
+      // Simple ping to Firestore to check connection
+      const checkConnection = async () => {
+        try {
+          // Try to get user data as a connection test
+          await getUserData(user.id);
+          setIsFirebaseConnected(true);
+        } catch (error) {
+          console.log("Firebase connection error:", error);
+          setIsFirebaseConnected(false);
+        }
+      };
+      
+      // Check connection initially
+      checkConnection();
+      
+      // Set up interval to check connection
+      const intervalId = setInterval(checkConnection, 60000); // Check every minute
+      
+      return () => clearInterval(intervalId);
+    }
+  }, [isLoggedIn, user]);
+  
+  // User notification for connection issues (simplified)
+  useEffect(() => {
+    if (!isFirebaseConnected && isLoggedIn) {
+      console.warn("Firebase connection is down. Data will be saved locally.");
+    }
+  }, [isFirebaseConnected, isLoggedIn]);
+
+  // Track logged-in users and save to Firebase
+  useEffect(() => {
+    if (isLoggedIn && user) {
+      // Save user to Firebase
+      saveUserToFirebase(user).then(success => {
+        if (success) {
+          // Load user data from Firebase
+          getUserData(user.id).then(userData => {
+            if (userData) {
+              // Sync local stats with Firebase
+              const localStats = {
+                gamesPlayed: parseInt(localStorage.getItem('gamesPlayed') || '0'),
+                gamesWon: parseInt(localStorage.getItem('gamesWon') || '0'),
+                bestTime: parseInt(localStorage.getItem('bestTime') || '0') || null
+              };
+              
+              syncLocalStatsWithFirebase(user.id, localStats);
+            }
+          });
+        }
+      });
+    }
+  }, [isLoggedIn, user]);
+
+  // Initialize game state
+  useEffect(() => {
+    // Resume audio context on first user interaction
+    resumeAudio();
+    
+    // ... existing code ...
+  }, []);
+  
+  // Handle user interactions that might need audio unblocking
+  const handleUserInteraction = () => {
+    // Resume audio context if it was suspended (needed for Safari and Chrome)
+    resumeAudio();
+  };
+  
+  // Add the interaction handler to the main container
+  useEffect(() => {
+    const gameContainer = document.getElementById('game-container');
+    if (gameContainer) {
+      gameContainer.addEventListener('click', handleUserInteraction);
+      gameContainer.addEventListener('touchstart', handleUserInteraction);
+    }
+    
+    return () => {
+      if (gameContainer) {
+        gameContainer.removeEventListener('click', handleUserInteraction);
+        gameContainer.removeEventListener('touchstart', handleUserInteraction);
+      }
+    };
+  }, []);
+
   return (
     <ErrorBoundary FallbackComponent={AuthErrorFallback}>
       <div className="min-h-screen bg-gradient-to-br from-slate-950 to-slate-800">
@@ -928,17 +1110,17 @@ function App() {
               <div className="min-h-[calc(var(--vh,1vh)*100)] flex flex-col py-2 px-2 sm:py-4 sm:px-4">
                 <div className="flex-none mb-4">
                   <GameHeader 
-                    timer={timer} 
-                    pairs={matchedPairs} 
-                    totalPairs={totalPairs}
+                    timer={timer}
                     difficulty={difficulty}
+                    onPauseToggle={handlePauseToggle}
+                    isPaused={isPaused}
+                    isDailyChallenge={isDailyChallenge}
+                    showLeaderboardButton={true}
+                    onLeaderboard={handleOpenLeaderboard}
+                    pairs={matchedCards.length / 2}
+                    totalPairs={cards.length / 2}
                     onRestart={restartGame}
                     onHome={returnToHome}
-                    isPaused={isPaused}
-                    onPauseToggle={handlePauseToggle}
-                    onProfile={handleOpenProfile}
-                    onLeaderboard={handleOpenLeaderboard}
-                    isDailyChallenge={isDailyChallenge}
                     isDuel={isDuel}
                     duelInfo={duelInfo}
                     orngPoints={currentStats.orngPoints}
@@ -1004,16 +1186,20 @@ function App() {
               {gameOver && (
                 <GameOver 
                   result={result} 
-                  matchedPairs={matchedPairs}
-                  totalPairs={totalPairs}
+                  timeSpent={60 - timer}
                   onRestart={restartGame}
                   onHome={returnToHome}
-                  currentStats={currentStats}
+                  earnedPoints={earnedPoints}
+                  difficulty={difficulty}
                   isDailyChallenge={isDailyChallenge}
+                  onOpenLeaderboard={handleOpenLeaderboard}
+                  onOpenProfile={handleOpenProfile}
                   isDuel={isDuel}
                   duelInfo={duelInfo}
                   duelResult={duelResult}
-                  earnedPoints={earnedPoints}
+                  matchedPairs={matchedCards.length / 2}
+                  totalPairs={cards.length / 2}
+                  currentStats={currentStats}
                 />
               )}
             </AnimatePresence>

@@ -1,4 +1,4 @@
-import { db, auth } from './config';
+import { db } from './config';
 import { 
   doc, 
   setDoc, 
@@ -13,101 +13,6 @@ import {
   increment, 
   serverTimestamp 
 } from 'firebase/firestore';
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  GoogleAuthProvider,
-  signInWithPopup,
-  updateProfile,
-  sendPasswordResetEmail
-} from 'firebase/auth';
-
-// Authentication functions
-export const registerUser = async (email, password, displayName) => {
-  try {
-    // Create user with email and password
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    
-    // Update profile with display name
-    await updateProfile(userCredential.user, {
-      displayName: displayName || 'Anonymous Player'
-    });
-    
-    // Create user document in Firestore
-    await saveUserToFirebase({
-      id: userCredential.user.uid,
-      displayName: displayName || 'Anonymous Player',
-      email: userCredential.user.email
-    });
-    
-    return userCredential.user;
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const loginWithEmail = async (email, password) => {
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    
-    // Update last login timestamp
-    await updateDoc(doc(db, 'users', userCredential.user.uid), {
-      lastLogin: serverTimestamp()
-    });
-    
-    return userCredential.user;
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const loginWithGoogle = async () => {
-  try {
-    const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
-    
-    // Check if user exists in Firestore
-    const userRef = doc(db, 'users', result.user.uid);
-    const userSnapshot = await getDoc(userRef);
-    
-    if (!userSnapshot.exists()) {
-      // Create user document
-      await saveUserToFirebase({
-        id: result.user.uid,
-        displayName: result.user.displayName || 'Anonymous Player',
-        email: result.user.email
-      });
-    } else {
-      // Update last login timestamp
-      await updateDoc(userRef, {
-        lastLogin: serverTimestamp()
-      });
-    }
-    
-    return result.user;
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const logoutUser = async () => {
-  try {
-    await signOut(auth);
-    return true;
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const resetUserPassword = async (email) => {
-  try {
-    await sendPasswordResetEmail(auth, email);
-    return true;
-  } catch (error) {
-    throw error;
-  }
-};
 
 // User-related functions
 export const saveUserToFirebase = async (user) => {
@@ -163,13 +68,6 @@ export const updateUserDisplayName = async (userId, newDisplayName) => {
     await updateDoc(userRef, {
       displayName: newDisplayName.trim()
     });
-    
-    // Also update the user's profile in Firebase Auth if this is the current user
-    if (auth.currentUser && auth.currentUser.uid === userId) {
-      await updateProfile(auth.currentUser, {
-        displayName: newDisplayName.trim()
-      });
-    }
     
     return { success: true, message: 'Display name updated successfully' };
   } catch (error) {

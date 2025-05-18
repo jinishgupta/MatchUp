@@ -6,8 +6,10 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 // Import Firebase to ensure it's initialized
 import firebaseApp from './firebase/config.js'
 
-// Import our AuthProvider
-import { AuthProvider } from './context/AuthContext.jsx'
+// Import Orange ID components
+import { PassportProvider } from './components/auth/index.jsx'
+import { AuthCallback } from './components/auth/index.jsx'
+import '@bedrock_org/passport/dist/style.css'
 
 // Store original console methods
 const originalConsoleWarn = console.warn;
@@ -144,7 +146,7 @@ React.useEffect = ((originalUseEffect) => {
 // Create the React application
 const app = (
   <React.StrictMode>
-    <AuthProvider>
+    <PassportProvider>
       <BrowserRouter
         future={{
           v7_startTransition: true,
@@ -152,10 +154,11 @@ const app = (
         }}
       >
         <Routes>
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="*" element={<App />} />
         </Routes>
       </BrowserRouter>
-    </AuthProvider>
+    </PassportProvider>
   </React.StrictMode>
 );
 
