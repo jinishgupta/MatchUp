@@ -1,0 +1,221 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow-x: hidden;
+    position: relative;
+    -webkit-overflow-scrolling: touch; /* Improve smooth scrolling on iOS */
+  }
+  
+  body {
+    font-family: 'Poppins', sans-serif;
+    @apply bg-slate-900 text-white;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 transform active:scale-95 focus:outline-none;
+  }
+  
+  .btn-primary {
+    @apply bg-indigo-500 hover:bg-indigo-600 text-white shadow-lg;
+  }
+  
+  .btn-secondary {
+    @apply bg-amber-400 hover:bg-amber-500 text-black shadow-lg font-semibold;
+  }
+  
+  .btn-danger {
+    @apply bg-red-500 hover:bg-red-600 text-white shadow-lg;
+  }
+  
+  .btn-success {
+    @apply bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg;
+  }
+  
+  .game-container {
+    @apply max-w-6xl mx-auto px-4 py-8;
+  }
+  
+  .game-header {
+    @apply flex flex-col sm:flex-row items-center justify-between bg-slate-800/90 backdrop-blur-sm p-4 rounded-xl mb-8 shadow-xl border border-slate-600;
+  }
+  
+  .game-stats {
+    @apply flex items-center gap-6 text-lg font-medium;
+  }
+  
+  .card-grid {
+    @apply grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6;
+  }
+  
+  /* Improve scrollable containers for modals */
+  .scrollable-container {
+    max-height: 80vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* =============== SIMPLIFIED CARD FLIPPING =============== */
+.flip-card-container {
+  perspective: 1000px;
+  cursor: pointer;
+}
+
+.flip-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+}
+
+.flip-card.flipped {
+  transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
+}
+
+.flip-card-front,
+.flip-card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  border-width: 2px;
+  border-style: solid;
+}
+
+.flip-card-front {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border-color: #475569;
+  z-index: 2;
+}
+
+.flip-card-back {
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+  border-color: #4338ca;
+  transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
+  z-index: 1;
+}
+
+/* Animation utilities - Keep these */
+.animate-bounce-sm {
+  animation: bounce-sm 1s infinite;
+}
+
+@keyframes bounce-sm {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-pulse-custom {
+  animation: pulse-custom 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-custom {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Game modals */
+.modal-overlay {
+  @apply fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-50 p-4;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-content {
+  @apply bg-slate-800 rounded-2xl p-6 w-full max-w-md shadow-xl border border-slate-600 transform transition-all;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+/* Confetti animation for winning */
+.confetti {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background-color: #f00;
+  border-radius: 50%;
+  animation: confetti-fall 3s ease-in-out infinite;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-100vh) rotate(0deg);
+  }
+  100% {
+    transform: translateY(100vh) rotate(360deg);
+  }
+}
+
+/* Card flipping additional utilities */
+.preserve-3d {
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+}
+
+/* Make fixed position modals scrollable on mobile */
+@media (max-width: 640px) {
+  .fixed-scrollable {
+    position: fixed;
+    inset: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .modal-inner {
+    margin: auto;
+    width: 100%;
+    max-width: 100%;
+    max-height: none;
+  }
+}
+
+/* Add viewport height fix for mobile browsers */
+.min-h-screen {
+  min-height: 100vh;
+  /* Fallback for browsers that don't support custom properties */
+  min-height: calc(var(--vh, 1vh) * 100);
+}
+
+/* Add shake animation for mismatched cards */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.shake-animation {
+  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+/* Add glow effect for matched cards */
+.matched-card {
+  box-shadow: 0 0 15px 5px rgba(167, 243, 208, 0.7) !important;
+  transition: box-shadow 0.3s ease;
+}
