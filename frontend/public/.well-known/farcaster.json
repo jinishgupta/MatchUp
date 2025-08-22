@@ -8,7 +8,9 @@
     "version": "1.0.0",
     "name": "MatchUp",
     "homeUrl" : "https://matchup-t8if.onrender.com",
-    "description": "MatchUp is a card matching game, now with blockchain trust."
+    "description": "MatchUp is a card matching game, now with blockchain trust.",
+    "iconUrl": "https://res.cloudinary.com/dpzkvpl7m/image/upload/v1755863358/memory-icon_qu1mbc.svg",
+    "primaryCategory": "game"
   },
   "baseBuilder": {
     "allowedAddresses": ["0xdF058553D1892cE7D213567aF0d94aBA48FcFbF0"]
