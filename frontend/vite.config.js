@@ -18,7 +18,7 @@ export default defineConfig({
   server: {
     middleware: [
       (req, res, next) => {
-        if (req.url === '/farcaster.json') {
+        if (req.url === '/.well-known/farcaster.json') {
           res.setHeader('Content-Type', 'application/json');
           res.setHeader('Access-Control-Allow-Origin', '*');
         }
