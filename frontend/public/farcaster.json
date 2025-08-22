@@ -1,0 +1,10 @@
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOjEyNjY5MzksInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHhlNzllYzNiODVDN2Y4OTQxQUZmMzE4OTQ5NUU1YzFhYmZlNzZjOUQ4In0",
+    "payload": "eyJkb21haW4iOiJtYXRjaHVwLXQ4aWYub25yZW5kZXIuY29tIn0",
+    "signature": "MHgwYzQ4OTk1OWYyMTY3M2Y3YmUyNzM3MjVhMjVhYTEzYTkwNTg5NGQ3MjUwMWM0YWE5MDViZWE2MzA4NGM1NjFhNWMwZjgzMGQzY2NmM2RkODg5MjhkY2NiMzA1MzgzMWNmNTk1YTZiNWJmZDNhZDI0NGMwMTE1ZWRmMzE0MGRkYTFj"
+  },
+  "baseBuilder": {
+    "allowedAddresses": ["0xdF058553D1892cE7D213567aF0d94aBA48FcFbF0"]
+  }
+}
